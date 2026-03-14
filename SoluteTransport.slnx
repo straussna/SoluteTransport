@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/SoluteTransport/SoluteTransport.csproj" />
+    <Project Path="src/SoluteTransport.Example/SoluteTransport.Example.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SoluteTransport.Tests/SoluteTransport.Tests.csproj" />
