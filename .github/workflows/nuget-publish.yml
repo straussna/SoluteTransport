@@ -20,7 +20,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Pack
-        run: dotnet pack src/SoluteTransport/SoluteTransport.csproj --configuration Release --output ./nupkg
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          dotnet pack src/SoluteTransport/SoluteTransport.csproj --configuration Release --output ./nupkg -p:Version="${VERSION}"
 
       - name: Push to GitHub Packages
-        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source "https://nuget.pkg.github.com/straussna/index.json"
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source "https://nuget.pkg.github.com/straussna/index.json" --skip-duplicate
