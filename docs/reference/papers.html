@@ -33,18 +33,22 @@
     <header>
       <p class="eyebrow">Reference · papers</p>
       <h1>Papers</h1>
-      <p class="standfirst">The reports and articles behind the solute transport model that SoluteTransport implements, grouped by subject. Each entry links its PDF in <code>docs/reference/papers/</code>.</p>
+      <p class="standfirst">The reports and articles behind the solute transport model that SoluteTransport implements, grouped by subject. Each entry links its PDF in <code>docs/reference/papers/</code>, or its DOI where no free copy exists.</p>
     </header>
 
     <section id="otis">
-      <div class="section-head"><h2>OTIS model</h2><span class="count">three</span></div>
+      <div class="section-head"><h2>OTIS model</h2><span class="count">seven</span></div>
       <p class="takeaway">OTIS (One-Dimensional Transport with Inflow and Storage) is the model whose equations the library solves: advection, dispersion, lateral inflow, transient storage and sorption.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Year</th><th>Reference</th><th>Contents</th></tr></thead>
           <tbody>
             <tr><td class="n">1991</td><td>Runkel, R.L., and Broshears, R.E. <a href="papers/runkel-broshears-1991-otis-cadswes-report.pdf">One-Dimensional Transport with Inflow and Storage (OTIS): A Solute Transport Model for Small Streams</a>. CADSWES, University of Colorado, final report in cooperation with the USGS.</td><td>The original model formulation and numerical solution.</td></tr>
+            <tr><td class="n">1991</td><td>Runkel, R.L., and Broshears, R.E. <a href="papers/runkel-broshears-otis-appendices-a-d.pdf">Appendices A–D</a> of the 1991 report, web edition on the USGS OTIS site, updated to match the current OTIS documentation.</td><td>Derivation of the governing equations, finite-difference approximations and boundary conditions, Crank–Nicolson matrix coefficients, and steady-state matrix coefficients.</td></tr>
             <tr><td class="n">1998</td><td>Runkel, R.L. <a href="papers/runkel-1998-otis-usgs-wrir-98-4018.pdf">One-Dimensional Transport with Inflow and Storage (OTIS): A Solute Transport Model for Streams and Rivers</a>. U.S. Geological Survey Water-Resources Investigations Report 98-4018.</td><td>The user manual: governing equations, input files, OTIS-P parameter estimation and worked applications.</td></tr>
+            <tr><td class="n">1999</td><td>Runkel, R.L., Bencala, K.E., and Kimball, B.A. <a href="papers/runkel-bencala-kimball-1999-otis-oteq.pdf">Modeling solute transport and geochemistry in streams and rivers using OTIS and OTEQ</a>. In U.S. Geological Survey Toxic Substances Hydrology Program, Proceedings of the Technical Meeting, Water-Resources Investigations Report 99-4018A, 109–118.</td><td>OTIS and OTEQ applications to tracer transport, trace-metal removal and pH-modification experiments. The PDF holds only these pages of the proceedings volume.</td></tr>
+            <tr><td class="n">2000</td><td>Runkel, R.L. <a href="papers/runkel-2000-otis-fact-sheet-fs-138-99.pdf">Using OTIS to model solute transport in streams and rivers</a>. U.S. Geological Survey Fact Sheet FS-138-99.</td><td>A four-page overview of the processes OTIS simulates and how it is applied.</td></tr>
+            <tr><td class="n">2010</td><td>Runkel, R.L. <a href="papers/runkel-2010-oteq-usgs-tm-6-b6.pdf">One-Dimensional Transport with Equilibrium Chemistry (OTEQ): A reactive transport model for streams and rivers</a>. U.S. Geological Survey Techniques and Methods, Book 6, Chapter B6.</td><td>The OTEQ manual: OTIS transport coupled with MINTEQ equilibrium chemistry, including tests of the downstream boundary condition.</td></tr>
             <tr><td class="n">2009</td><td>Runkel, R.L. <a href="papers/runkel-2009-otis-nabs-workshop.pdf">Quantifying Transient Storage and Hyporheic Exchange using Tracer Techniques and the OTIS Solute Transport Model</a>. NABS Workshop, Grand Rapids, Michigan, 17 May 2009.</td><td>Workshop notes on tracer experiments and fitting OTIS to them.</td></tr>
           </tbody>
         </table>
@@ -52,12 +56,13 @@
     </section>
 
     <section id="theory">
-      <div class="section-head"><h2>Transport theory and analytical solutions</h2><span class="count">three</span></div>
+      <div class="section-head"><h2>Transport theory and analytical solutions</h2><span class="count">four</span></div>
       <p class="takeaway">These derive the advection-dispersion and transient-storage equations and give closed-form solutions for checking numerical results.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Year</th><th>Reference</th><th>Contents</th></tr></thead>
           <tbody>
+            <tr><td class="n">1993</td><td>Runkel, R.L., and Chapra, S.C. An efficient numerical solution of the transient storage equations for solute transport in small streams. <i>Water Resources Research</i> 29(1), 211–215. <a href="https://doi.org/10.1029/92WR02217">doi:10.1029/92WR02217</a> (no free copy; publisher access only).</td><td>The decoupled implicit scheme OTIS uses to solve the main-channel and storage-zone equations.</td></tr>
             <tr><td class="n">1995</td><td>Runkel, R.L., and Bencala, K.E. <a href="papers/runkel-bencala-1995-reacting-solutes.pdf">Transport of reacting solutes in rivers and streams</a>. In V.P. Singh (ed.), <i>Environmental Hydrology</i>, Kluwer Academic Publishers, 137–164.</td><td>The processes acting on solutes in streams and the equations that describe them.</td></tr>
             <tr><td class="n">1996</td><td>Runkel, R.L. <a href="papers/runkel-1996-ade-finite-duration.pdf">Solution of the Advection-Dispersion Equation: Continuous Load of Finite Duration</a>. <i>Journal of Environmental Engineering</i> 122(9), 830–832.</td><td>The exact analytical solution for an upstream release of finite duration.</td></tr>
             <tr><td class="n">2005</td><td>De Smedt, F., Brevis, W., and Debels, P. <a href="papers/de-smedt-2005-transient-storage-analytical.pdf">Analytical solution for solute transport resulting from instantaneous injection in streams with transient storage</a>. <i>Journal of Hydrology</i> 315, 25–39. doi:10.1016/j.jhydrol.2005.04.002</td><td>An analytical transient-storage solution for a slug injection, verified against OTIS.</td></tr>
@@ -81,13 +86,14 @@
     </section>
 
     <section id="estimation">
-      <div class="section-head"><h2>Parameter estimation</h2><span class="count">one</span></div>
+      <div class="section-head"><h2>Parameter estimation</h2><span class="count">two</span></div>
       <p class="takeaway">OTIS-P estimates transport parameters with the nonlinear least squares routines of STARPAC.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Year</th><th>Reference</th><th>Contents</th></tr></thead>
           <tbody>
             <tr><td class="n">1983</td><td>Donaldson, J.R., and Tryon, P.V. <a href="papers/donaldson-tryon-1983-starpac-nonlinear-least-squares.pdf">Nonlinear Least Squares Regression Using STARPAC: The Standards Time Series and Regression Package</a>. National Bureau of Standards Technical Note 1068-2.</td><td>The STARPAC nonlinear least squares library and its input conventions.</td></tr>
+            <tr><td class="n">1990</td><td>Donaldson, J.R., and Tryon, P.V. <a href="papers/donaldson-tryon-1990-starpac-users-guide-nbsir-86-3448.pdf">User's Guide to STARPAC: The Standards Time Series and Regression Package</a>. National Institute of Standards and Technology Internal Report NBSIR 86-3448, text revised 15 March 1990. Excerpt hosted on the USGS OTIS site.</td><td>The portions of the STARPAC guide that apply to OTIS-P.</td></tr>
           </tbody>
         </table>
       </div>
