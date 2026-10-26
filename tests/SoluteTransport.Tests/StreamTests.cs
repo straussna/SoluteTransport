@@ -77,11 +77,36 @@ public class StreamTests
     }
 
     [Fact]
-    public void Constructor_ThrowsArgumentException_WhenASIsZero()
+    public void Constructor_ThrowsArgumentException_WhenASIsZeroWithExchange()
     {
         var p = DefaultParameters() with { AS = 0 };
         Assert.Throws<ArgumentException>(() =>
             new Stream(10, 10, 1, 1, [], p));
+    }
+
+    [Fact]
+    public void Constructor_AcceptsZeroAS_WithoutExchange()
+    {
+        var p = DefaultParameters() with { AS = 0, Alpha = 0 };
+        var result = new Stream(10, 10, 1, 1, [1.0], p).SimulateAdvectionAndDispersion();
+        Assert.All(result.C.Cast<double>(), v => Assert.True(double.IsFinite(v)));
+    }
+
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.4)]
+    public void Constructor_ThrowsArgumentException_WhenFewerThanTwoSegments(double streamLength)
+    {
+        Assert.Throws<ArgumentException>(() =>
+            new Stream(streamLength, 10, 1, 1, [], DefaultParameters()));
+    }
+
+    [Fact]
+    public void Constructor_ThrowsArgumentException_WhenDownstreamFluxWithoutDispersion()
+    {
+        var p = DefaultParameters() with { D = 0 };
+        Assert.Throws<ArgumentException>(() =>
+            new Stream(10, 10, 1, 1, [], p, downstreamDispersiveFlux: 0.1));
     }
 
     // ------------------------------------------------------------------
@@ -97,27 +122,24 @@ public class StreamTests
         double dx = 1.0;
 
         int numSegments = (int)(streamLength / dx);
-        int numTimeSteps = (int)(totalDuration / dt);
+        int numTimeLevels = (int)(totalDuration / dt) + 1;
 
-        double[] boundary = new double[numTimeSteps];
+        double[] boundary = new double[numTimeLevels];
         var stream = new Stream(streamLength, totalDuration, dt, dx, boundary, DefaultParameters());
 
         SimulationResult result = stream.SimulateAdvectionAndDispersion();
 
         Assert.Equal(numSegments, result.C.GetLength(0));
-        Assert.Equal(numTimeSteps, result.C.GetLength(1));
+        Assert.Equal(numTimeLevels, result.C.GetLength(1));
         Assert.Equal(numSegments, result.CS.GetLength(0));
-        Assert.Equal(numTimeSteps, result.CS.GetLength(1));
+        Assert.Equal(numTimeLevels, result.CS.GetLength(1));
         Assert.Equal(numSegments, result.CSed.GetLength(0));
-        Assert.Equal(numTimeSteps, result.CSed.GetLength(1));
+        Assert.Equal(numTimeLevels, result.CSed.GetLength(1));
     }
 
     [Fact]
     public void Simulate_AllZeroConcentrations_WhenNoInputAndNoTransport()
     {
-        // With Q=0 and D=0 the advective-diffusive flux coefficients G and E
-        // are both zero, so the simulation with all-zero inputs and all-zero
-        // initial conditions must remain identically zero.
         var inertParameters = new StreamParameters(
             A: 1.0, AS: 0.1, CL: 0.0, D: 0.0, Q: 0.0, QLin: 0.0,
             Alpha: 0.0, ChatS: 0.0, Kd: 0.0, Lambda: 0.0, LambdaS: 0.0,
@@ -158,7 +180,7 @@ public class StreamTests
         // The concentration at the last segment at the final time step should
         // be positive because the tracer has had time to travel downstream.
         int lastSegment = (int)(streamLength / dx) - 1;
-        int lastTime = numTimeSteps - 1;
+        int lastTime = numTimeSteps;
         Assert.True(result.C[lastSegment, lastTime] > 0.0,
             $"Expected concentration > 0 at downstream end, got {result.C[lastSegment, lastTime]}");
     }
@@ -198,7 +220,10 @@ public class StreamTests
         int numTimeSteps = (int)(totalDuration / dt);
         double[] boundary = Enumerable.Repeat(1.0, numTimeSteps).ToArray();
 
-        var stream = new Stream(streamLength, totalDuration, dt, dx, boundary, DefaultParameters());
+        // Cell Peclet number Q dx / (A D) = 1, below the limit of 2 for
+        // non-oscillating centred differences.
+        var p = DefaultParameters() with { D = 0.5 };
+        var stream = new Stream(streamLength, totalDuration, dt, dx, boundary, p);
         SimulationResult result = stream.SimulateAdvectionAndDispersion();
 
         for (int i = 0; i < result.C.GetLength(0); i++)
@@ -220,13 +245,16 @@ public class StreamTests
         double dx = 1.0;
         int numTimeSteps = (int)(totalDuration / dt);
 
-        // Only supply 10 time steps of boundary data (less than numTimeSteps)
-        double[] boundary = Enumerable.Repeat(1.0, 10).ToArray();
+        // Only supply 10 time levels of boundary data (less than numTimeSteps + 1)
+        double[] shortBoundary = Enumerable.Repeat(1.0, 10).ToArray();
+        double[] paddedBoundary = new double[numTimeSteps + 1];
+        Array.Fill(paddedBoundary, 1.0, 0, 10);
 
-        var stream = new Stream(streamLength, totalDuration, dt, dx, boundary, DefaultParameters());
-        SimulationResult result = stream.SimulateAdvectionAndDispersion();
+        SimulationResult shortResult = new Stream(streamLength, totalDuration, dt, dx, shortBoundary, DefaultParameters())
+            .SimulateAdvectionAndDispersion();
+        SimulationResult paddedResult = new Stream(streamLength, totalDuration, dt, dx, paddedBoundary, DefaultParameters())
+            .SimulateAdvectionAndDispersion();
 
-        // The upstream boundary at t >= 10 s should be 0
-        Assert.Equal(0.0, result.C[0, 50]);
+        Assert.Equal(paddedResult.C.Cast<double>(), shortResult.C.Cast<double>());
     }
 }

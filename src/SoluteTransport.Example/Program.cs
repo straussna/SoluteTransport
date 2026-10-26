@@ -11,10 +11,10 @@ const double dt = 1.0;               // s  (time-step)
 const double dx = 0.5;               // m  (segment length)
 
 // Upstream boundary: constant concentration of 1 kg/m³ for the first 600 s,
-// then zero (simulating a short-duration pulse).
+// then zero (simulating a short-duration pulse). One value per time level.
 int numTimeSteps = (int)(totalDuration / dt);
-double[] upstreamBoundary = new double[numTimeSteps];
-for (int i = 0; i < Math.Min(600, numTimeSteps); i++)
+double[] upstreamBoundary = new double[numTimeSteps + 1];
+for (int i = 0; i <= Math.Min(600, numTimeSteps); i++)
 {
     upstreamBoundary[i] = 1.0; // kg/m³
 }
@@ -28,13 +28,13 @@ var parameters = new StreamParameters(
     Q: 0.5,        // flow rate (m³/s)
     QLin: 0.0,     // lateral inflow rate per unit length (m²/s)
     Alpha: 0.001,  // storage exchange rate (1/s)
-    ChatS: 0.0,    // storage-zone equilibrium concentration (kg/m³)
-    Kd: 0.0,       // partition coefficient (m³/kg)
+    ChatS: 0.0,    // background storage-zone concentration (kg/m³)
+    Kd: 0.0,       // distribution coefficient (m³/kg)
     Lambda: 0.0,   // first-order decay (main channel) (1/s)
     LambdaS: 0.0,  // first-order decay (storage zone) (1/s)
-    LambdaHat: 0.0,  // desorption rate from sediment (1/s)
-    LambdaHatS: 0.0, // desorption rate in storage zone (1/s)
-    Rho: 0.0);     // sediment bulk density (kg/m³)
+    LambdaHat: 0.0,  // main-channel sorption rate (1/s)
+    LambdaHatS: 0.0, // storage-zone sorption rate (1/s)
+    Rho: 0.0);     // accessible sediment mass per water volume (kg/m³)
 
 var stream = new SoluteTransport.Stream(streamLength, totalDuration, dt, dx, upstreamBoundary, parameters);
 
@@ -55,7 +55,7 @@ int lastSegment = (int)(streamLength / dx) - 1;
 Console.WriteLine($"{"Time (s)",10}  {"C mid (kg/m³)",15}  {"C end (kg/m³)",15}");
 Console.WriteLine(new string('-', 46));
 
-for (int j = 0; j < numTimeSteps; j += 300)
+for (int j = 0; j <= numTimeSteps; j += 300)
 {
     Console.WriteLine($"{j * dt,10:F0}  {result.C[midSegment, j],15:F6}  {result.C[lastSegment, j],15:F6}");
 }
