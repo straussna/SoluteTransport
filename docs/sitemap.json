@@ -1,0 +1,12 @@
+{
+  "brand": "SoluteTransport",
+  "home": "index.html",
+  "chapters": [
+    {"title": "Overview", "tab": false, "sections": [
+      {"label": "Overview", "page": "index.html"}
+    ]},
+    {"title": "Reference", "utility": true, "sections": [
+      {"label": "Papers", "page": "reference/papers.html"}
+    ]}
+  ]
+}

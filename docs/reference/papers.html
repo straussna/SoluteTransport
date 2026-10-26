@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Papers · SoluteTransport</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body><main class="shell">
+    <nav class="site-nav" aria-label="Documentation">
+      <div class="site-nav-primary">
+        <a href="../index.html" class="site-brand">SoluteTransport</a>
+        <div class="site-sections">
+          <a href="../reference/papers.html" class="site-section section-current" aria-current="page">Reference</a>
+        </div>
+        <details class="sitemap">
+          <summary>All pages</summary>
+          <div class="sitemap-panel">
+            <div class="sitemap-group">
+              <strong>Overview</strong>
+              <a href="../index.html">Overview</a>
+            </div>
+            <div class="sitemap-group sitemap-utility">
+              <strong>Reference</strong>
+              <a href="../reference/papers.html" aria-current="page">Papers</a>
+            </div>
+          </div>
+        </details>
+      </div>
+      <div class="site-context">
+        <span class="context-label">Reference</span>
+        <a href="../reference/papers.html" aria-current="page">Papers</a>
+      </div>
+    </nav>
+
+    <header>
+      <p class="eyebrow">Reference · papers</p>
+      <h1>Papers</h1>
+      <p class="standfirst">The reports and articles behind the solute transport model that SoluteTransport implements, grouped by subject. Each entry links its PDF in <code>docs/reference/papers/</code>.</p>
+    </header>
+
+    <section id="otis">
+      <div class="section-head"><h2>OTIS model</h2><span class="count">three</span></div>
+      <p class="takeaway">OTIS (One-Dimensional Transport with Inflow and Storage) is the model whose equations the library solves: advection, dispersion, lateral inflow, transient storage and sorption.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Year</th><th>Reference</th><th>Contents</th></tr></thead>
+          <tbody>
+            <tr><td class="n">1991</td><td>Runkel, R.L., and Broshears, R.E. <a href="papers/runkel-broshears-1991-otis-cadswes-report.pdf">One-Dimensional Transport with Inflow and Storage (OTIS): A Solute Transport Model for Small Streams</a>. CADSWES, University of Colorado, final report in cooperation with the USGS.</td><td>The original model formulation and numerical solution.</td></tr>
+            <tr><td class="n">1998</td><td>Runkel, R.L. <a href="papers/runkel-1998-otis-usgs-wrir-98-4018.pdf">One-Dimensional Transport with Inflow and Storage (OTIS): A Solute Transport Model for Streams and Rivers</a>. U.S. Geological Survey Water-Resources Investigations Report 98-4018.</td><td>The user manual: governing equations, input files, OTIS-P parameter estimation and worked applications.</td></tr>
+            <tr><td class="n">2009</td><td>Runkel, R.L. <a href="papers/runkel-2009-otis-nabs-workshop.pdf">Quantifying Transient Storage and Hyporheic Exchange using Tracer Techniques and the OTIS Solute Transport Model</a>. NABS Workshop, Grand Rapids, Michigan, 17 May 2009.</td><td>Workshop notes on tracer experiments and fitting OTIS to them.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="theory">
+      <div class="section-head"><h2>Transport theory and analytical solutions</h2><span class="count">three</span></div>
+      <p class="takeaway">These derive the advection-dispersion and transient-storage equations and give closed-form solutions for checking numerical results.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Year</th><th>Reference</th><th>Contents</th></tr></thead>
+          <tbody>
+            <tr><td class="n">1995</td><td>Runkel, R.L., and Bencala, K.E. <a href="papers/runkel-bencala-1995-reacting-solutes.pdf">Transport of reacting solutes in rivers and streams</a>. In V.P. Singh (ed.), <i>Environmental Hydrology</i>, Kluwer Academic Publishers, 137–164.</td><td>The processes acting on solutes in streams and the equations that describe them.</td></tr>
+            <tr><td class="n">1996</td><td>Runkel, R.L. <a href="papers/runkel-1996-ade-finite-duration.pdf">Solution of the Advection-Dispersion Equation: Continuous Load of Finite Duration</a>. <i>Journal of Environmental Engineering</i> 122(9), 830–832.</td><td>The exact analytical solution for an upstream release of finite duration.</td></tr>
+            <tr><td class="n">2005</td><td>De Smedt, F., Brevis, W., and Debels, P. <a href="papers/de-smedt-2005-transient-storage-analytical.pdf">Analytical solution for solute transport resulting from instantaneous injection in streams with transient storage</a>. <i>Journal of Hydrology</i> 315, 25–39. doi:10.1016/j.jhydrol.2005.04.002</td><td>An analytical transient-storage solution for a slug injection, verified against OTIS.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="storage">
+      <div class="section-head"><h2>Transient storage and nutrient uptake</h2><span class="count">two</span></div>
+      <p class="takeaway">These interpret fitted transient-storage parameters and use them to separate transport from nutrient uptake.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Year</th><th>Reference</th><th>Contents</th></tr></thead>
+          <tbody>
+            <tr><td class="n">2002</td><td>Runkel, R.L. <a href="papers/runkel-2002-transient-storage-metric.pdf">A new metric for determining the importance of transient storage</a>. <i>Journal of the North American Benthological Society</i> 21(4), 529–543.</td><td>F<sub>med</sub>, the fraction of median reach travel time due to transient storage.</td></tr>
+            <tr><td class="n">2007</td><td>Runkel, R.L. <a href="papers/runkel-2007-nutrient-spiraling.pdf">Toward a transport-based analysis of nutrient spiraling and uptake in streams</a>. <i>Limnology and Oceanography: Methods</i> 5, 50–62.</td><td>Nutrient spiraling metrics computed from transport model parameters.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="estimation">
+      <div class="section-head"><h2>Parameter estimation</h2><span class="count">one</span></div>
+      <p class="takeaway">OTIS-P estimates transport parameters with the nonlinear least squares routines of STARPAC.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Year</th><th>Reference</th><th>Contents</th></tr></thead>
+          <tbody>
+            <tr><td class="n">1983</td><td>Donaldson, J.R., and Tryon, P.V. <a href="papers/donaldson-tryon-1983-starpac-nonlinear-least-squares.pdf">Nonlinear Least Squares Regression Using STARPAC: The Standards Time Series and Regression Package</a>. National Bureau of Standards Technical Note 1068-2.</td><td>The STARPAC nonlinear least squares library and its input conventions.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer><div class="walk"><span class="back"><b>Back</b><a href="../index.html">Overview</a></span></div></footer>
+  </main>
+</body>
+</html>

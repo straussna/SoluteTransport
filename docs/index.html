@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SoluteTransport</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body><main class="shell">
+    <nav class="site-nav" aria-label="Documentation">
+      <div class="site-nav-primary">
+        <a href="index.html" class="site-brand" aria-current="page">SoluteTransport</a>
+        <div class="site-sections">
+          <a href="reference/papers.html" class="site-section">Reference</a>
+        </div>
+        <details class="sitemap">
+          <summary>All pages</summary>
+          <div class="sitemap-panel">
+            <div class="sitemap-group">
+              <strong>Overview</strong>
+              <a href="index.html" aria-current="page">Overview</a>
+            </div>
+            <div class="sitemap-group sitemap-utility">
+              <strong>Reference</strong>
+              <a href="reference/papers.html">Papers</a>
+            </div>
+          </div>
+        </details>
+      </div>
+      <div class="site-context">
+        <span class="context-label">Overview</span>
+        <a href="index.html" aria-current="page">Overview</a>
+      </div>
+    </nav>
+
+    <header>
+      <p class="eyebrow">Documentation</p>
+      <h1>SoluteTransport</h1>
+      <p class="standfirst">A .NET library that simulates one-dimensional solute advection and dispersion in stream reaches, with transient storage and sediment sorption, solved by a Crank-Nicolson finite-difference scheme. This documentation collects the papers behind the model.</p>
+    </header>
+
+    <section id="start">
+      <div class="section-head"><h2>Start here</h2><span class="count">two commands</span></div>
+      <p class="takeaway">The example console app runs one simulation; the tests check the solver.</p>
+      <pre><code>dotnet run --project "C:\source\repos\SoluteTransport\src\SoluteTransport.Example\SoluteTransport.Example.csproj"</code></pre>
+      <pre><code>dotnet test "C:\source\repos\SoluteTransport\tests\SoluteTransport.Tests\SoluteTransport.Tests.csproj"</code></pre>
+    </section>
+
+    <section id="chapters">
+      <div class="section-head"><h2>Chapters</h2><span class="count">one</span></div>
+      <div class="steps">
+        <article class="step-card"><a href="reference/papers.html"><span class="step">R</span><h3>Papers</h3><p>The OTIS model reports, the transport theory and the parameter-estimation methods the library draws on.</p></a></article>
+      </div>
+    </section>
+
+    <footer><div class="walk"><span class="next"><b>Next</b><a href="reference/papers.html">Papers</a></span></div></footer>
+  </main>
+</body>
+</html>
