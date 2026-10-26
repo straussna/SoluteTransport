@@ -75,7 +75,7 @@ public class AnalyticalSolutionTests
     }
 
     [Theory]
-    [InlineData(0.0, 150.0)]   // conservative, load still on
+    [InlineData(0.0, 250.0)]   // conservative, load still on
     [InlineData(0.0, 60.0)]    // conservative, load switched off
     [InlineData(1e-3, 60.0)]   // with first-order decay
     public void FiniteDurationLoad_MatchesRunkel1996(double lambda, double tau)
