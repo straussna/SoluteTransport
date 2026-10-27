@@ -37,28 +37,30 @@ public class Stream
 {
     private readonly int segmentCount;
     private readonly int timeStepCount;
-    private readonly double dt;
-    private readonly StreamParameters p;
     private readonly double[] upstreamBoundary;
 
-    // Transport operator L[C] = lower*C[i-1] + diag*C[i] + upper*C[i+1],
-    // with segment-specific entries at the boundaries.
-    private readonly double[] lower;
-    private readonly double[] diag;
-    private readonly double[] upper;
+    // Right-hand side of equation (17) at segment i:
+    //   explicitLower[i] C[i-1] + explicitCentre[i] C[i] + explicitUpper[i] C[i+1]
+    //   + storageWeight CS[i] + sedimentWeight Csed[i] + sourceTerm,
+    // plus upstreamTerm (Cbc[j] + Cbc[j+1]) in the first segment and
+    // downstreamTerm in the last.
+    private readonly double[] explicitLower;
+    private readonly double[] explicitCentre;
+    private readonly double[] explicitUpper;
+    private readonly double storageWeight;
+    private readonly double sedimentWeight;
+    private readonly double sourceTerm;
+    private readonly double upstreamTerm;
+    private readonly double downstreamTerm;
 
-    // Weight of Cbc in L[C] for the first segment, and the constant
-    // downstream-flux source in L[C] for the last segment.
-    private readonly double upstreamWeight;
-    private readonly double downstreamSource;
-
-    // Decoupling constants, Runkel (1998) equations (25)–(27).
-    private readonly double gamma;
-    private readonly double storageDenominator;
-    private readonly double sedimentDenominator;
-
-    // Reaction part of F' (equation 29).
-    private readonly double reaction;
+    // Equations (25) and (26) as
+    //   CS[j+1]   = storageOld CS[j]     + storageFromC (C[j] + C[j+1]) + storageConstant
+    //   Csed[j+1] = sedimentOld Csed[j]  + sedimentFromC (C[j] + C[j+1]).
+    private readonly double storageOld;
+    private readonly double storageFromC;
+    private readonly double storageConstant;
+    private readonly double sedimentOld;
+    private readonly double sedimentFromC;
 
     // Thomas-algorithm factors of the constant Crank-Nicolson matrix:
     // sub-diagonal, modified super-diagonal and reciprocal pivots.
@@ -126,9 +128,8 @@ public class Stream
         if (timeStepCount < 1)
             throw new ArgumentException("totalDuration must be at least one time step.", nameof(totalDuration));
 
-        this.dt = dt;
-        this.p = parameters;
-        this.upstreamBoundary = upstreamBoundaryData;
+        StreamParameters p = parameters;
+        upstreamBoundary = upstreamBoundaryData;
 
         // Flow rate at segment centres, Runkel and Broshears (1991) equation (31),
         // with equal segment lengths and uniform lateral flows.
@@ -144,9 +145,10 @@ public class Stream
         // Interior segments: Runkel (1998) equation (12).
         double[] adv = new double[segmentCount];
         double disp = p.D / (dx * dx);
-        lower = new double[segmentCount];
-        diag = new double[segmentCount];
-        upper = new double[segmentCount];
+        // Transport operator L[C] = lower*C[i-1] + diag*C[i] + upper*C[i+1].
+        double[] lower = new double[segmentCount];
+        double[] diag = new double[segmentCount];
+        double[] upper = new double[segmentCount];
         for (int i = 0; i < segmentCount; i++)
         {
             adv[i] = flow[i] / (2 * p.A * dx);
@@ -161,7 +163,7 @@ public class Stream
         lower[0] = 0;
         diag[0] = -adv[0] - 3 * disp;
         upper[0] = -adv[0] + disp;
-        upstreamWeight = 2 * adv[0] + 2 * disp;
+        double upstreamWeight = 2 * adv[0] + 2 * disp;
 
         // Last segment: equations (B16)–(B18), with C[N] = C[N-1] + dx DSBOUND / D.
         //   advection  -(Q[N-1] / 2 A dx) (C[N-1] - C[N-2] + dx DSBOUND / D)
@@ -169,26 +171,50 @@ public class Stream
         int last = segmentCount - 1;
         diag[last] = -adv[last] - disp;
         upper[last] = 0;
-        downstreamSource = downstreamDispersiveFlux == 0
+        double downstreamSource = downstreamDispersiveFlux == 0
             ? 0
             : -flow[last] * downstreamDispersiveFlux / (2 * p.A * p.D) + downstreamDispersiveFlux / dx;
 
-        gamma = p.Alpha == 0 ? 0 : p.Alpha * dt * p.A / p.AS;
-        storageDenominator = 2 + gamma + dt * p.LambdaHatS + dt * p.LambdaS;
-        sedimentDenominator = 2 + dt * p.LambdaHat;
+        // Decoupling constants, Runkel (1998) equations (25)–(27).
+        double gamma = p.Alpha == 0 ? 0 : p.Alpha * dt * p.A / p.AS;
+        double storageDenominator = 2 + gamma + dt * p.LambdaHatS + dt * p.LambdaS;
+        double sedimentDenominator = 2 + dt * p.LambdaHat;
+        storageOld = (2 - gamma - dt * p.LambdaHatS - dt * p.LambdaS) / storageDenominator;
+        storageFromC = gamma / storageDenominator;
+        storageConstant = 2 * dt * p.LambdaHatS * p.ChatS / storageDenominator;
+        sedimentOld = (2 - dt * p.LambdaHat) / sedimentDenominator;
+        sedimentFromC = dt * p.LambdaHat * p.Kd / sedimentDenominator;
 
-        reaction = p.QLin / p.A
-            + p.Alpha * (1 - gamma / storageDenominator)
-            + p.Rho * p.LambdaHat * p.Kd * (1 - dt * p.LambdaHat / sedimentDenominator)
+        // Reaction part of F' (equation 29).
+        double lateral = p.QLin / p.A;
+        double sorption = p.Rho * p.LambdaHat;
+        double reaction = lateral
+            + p.Alpha * (1 - storageFromC)
+            + sorption * (p.Kd - sedimentFromC)
             + p.Lambda;
 
-        // Left-hand side of equation (17): a C[i-1] + b C[i] + c C[i+1].
+        // Equation (17): the implicit half on the left, the explicit half
+        // G[C, CS, Csed] (equation 15) and the known parts of equation (30)
+        // on the right.
         double half = dt / 2;
+        storageWeight = half * p.Alpha * (1 + storageOld);
+        sedimentWeight = half * sorption * (1 + sedimentOld);
+        sourceTerm = half * (2 * lateral * p.CL + p.Alpha * storageConstant);
+        upstreamTerm = half * upstreamWeight;
+        downstreamTerm = dt * downstreamSource;
+
+        explicitLower = new double[segmentCount];
+        explicitCentre = new double[segmentCount];
+        explicitUpper = new double[segmentCount];
         subDiagonal = new double[segmentCount];
         modifiedUpper = new double[segmentCount];
         reciprocalPivot = new double[segmentCount];
         for (int i = 0; i < segmentCount; i++)
         {
+            explicitLower[i] = half * lower[i];
+            explicitCentre[i] = 1 - half * (reaction - diag[i]);
+            explicitUpper[i] = half * upper[i];
+
             double a = -half * lower[i];
             double b = 1 + half * (reaction - diag[i]);
             double c = -half * upper[i];
@@ -258,14 +284,13 @@ public class Stream
 
         var current = new Level(n);
         var next = new Level(n);
-        double[] rhs = new double[n];
 
         int output = 0;
         for (int j = 0; output < levels.Length; j++)
         {
             if (j > 0)
             {
-                IncrementTimeForward(j - 1, current, next, rhs);
+                IncrementTimeForward(j - 1, current, next);
                 (current, next) = (next, current);
             }
             if (levels[output] == j)
@@ -295,93 +320,43 @@ public class Stream
         j < upstreamBoundary.Length ? upstreamBoundary[j] : 0;
 
     /// <summary>
-    /// G[C, CS, Csed] at segment <paramref name="i"/> of time level
-    /// <paramref name="j"/> (Runkel 1998, equation (15)), including the
-    /// boundary terms of the transport operator.
-    /// </summary>
-    private double G(int i, int j, Level level)
-    {
-        double[] c = level.C;
-        double transport = diag[i] * c[i];
-        if (i > 0) transport += lower[i] * c[i - 1];
-        if (i < segmentCount - 1) transport += upper[i] * c[i + 1];
-        if (i == 0) transport += upstreamWeight * UpstreamConcentration(j);
-        if (i == segmentCount - 1) transport += downstreamSource;
-
-        return transport
-            + p.QLin / p.A * (p.CL - c[i])
-            + p.Alpha * (level.CS[i] - c[i])
-            + p.Rho * p.LambdaHat * (level.Csed[i] - p.Kd * c[i])
-            - p.Lambda * c[i];
-    }
-
-    /// <summary>
     /// Advances <paramref name="current"/> at time level <paramref name="j"/>
-    /// to <paramref name="next"/> at <paramref name="j"/> + 1: solves
-    /// equation (17) with the decoupled coefficients of equations (18), (20),
-    /// (29) and (30), then applies equations (25) and (26).
+    /// to <paramref name="next"/> at <paramref name="j"/> + 1. The forward
+    /// sweep of the Thomas algorithm builds the right-hand side of equation
+    /// (17) as it goes; the backward sweep finishes each C[i] and applies
+    /// equations (25) and (26) to the same segment.
     /// </summary>
-    private void IncrementTimeForward(int j, Level current, Level next, double[] rhs)
+    private void IncrementTimeForward(int j, Level current, Level next)
     {
         int n = segmentCount;
-        double half = dt / 2;
+        int last = n - 1;
         double[] c = current.C, cs = current.CS, sed = current.Csed;
+        double[] x = next.C, nextCS = next.CS, nextSed = next.Csed;
+        double[] el = explicitLower, ec = explicitCentre, eu = explicitUpper;
+        double[] sub = subDiagonal, mu = modifiedUpper, rp = reciprocalPivot;
+        double sw = storageWeight, dw = sedimentWeight, source = sourceTerm;
 
-        for (int i = 0; i < n; i++)
+        double rhs = ec[0] * c[0] + eu[0] * c[1] + sw * cs[0] + dw * sed[0] + source
+                     + upstreamTerm * (UpstreamConcentration(j) + UpstreamConcentration(j + 1));
+        x[0] = rhs * rp[0];
+        for (int i = 1; i < last; i++)
         {
-            // Known parts of CS and Csed at j + 1, equation (30).
-            double storageKnown = ((2 - gamma - dt * p.LambdaHatS - dt * p.LambdaS) * cs[i]
-                                   + gamma * c[i]
-                                   + 2 * dt * p.LambdaHatS * p.ChatS)
-                                  / storageDenominator;
-            double sedimentKnown = ((2 - dt * p.LambdaHat) * sed[i]
-                                    + dt * p.LambdaHat * p.Kd * c[i])
-                                   / sedimentDenominator;
-
-            rhs[i] = c[i] + half * (
-                G(i, j, current)
-                + p.QLin / p.A * p.CL
-                + p.Alpha * storageKnown
-                + p.Rho * p.LambdaHat * sedimentKnown);
+            rhs = el[i] * c[i - 1] + ec[i] * c[i] + eu[i] * c[i + 1]
+                  + sw * cs[i] + dw * sed[i] + source;
+            x[i] = (rhs - sub[i] * x[i - 1]) * rp[i];
         }
+        rhs = el[last] * c[last - 1] + ec[last] * c[last]
+              + sw * cs[last] + dw * sed[last] + source + downstreamTerm;
+        x[last] = (rhs - sub[last] * x[last - 1]) * rp[last];
 
-        // Boundary terms at the advanced time level.
-        rhs[0] += half * upstreamWeight * UpstreamConcentration(j + 1);
-        rhs[n - 1] += half * downstreamSource;
-
-        SolveTridiagonal(rhs, next.C);
-
-        for (int i = 0; i < n; i++)
+        double so = storageOld, sc = storageFromC, sk = storageConstant;
+        double ho = sedimentOld, hc = sedimentFromC;
+        for (int i = last; i >= 0; i--)
         {
-            next.CS[i] = ((2 - gamma - dt * p.LambdaHatS - dt * p.LambdaS) * cs[i]
-                          + gamma * c[i]
-                          + gamma * next.C[i]
-                          + 2 * dt * p.LambdaHatS * p.ChatS)
-                         / storageDenominator;
-
-            next.Csed[i] = ((2 - dt * p.LambdaHat) * sed[i]
-                            + dt * p.LambdaHat * p.Kd * (c[i] + next.C[i]))
-                           / sedimentDenominator;
-        }
-    }
-
-    /// <summary>
-    /// Solves the Crank-Nicolson system for right-hand side
-    /// <paramref name="d"/> into <paramref name="x"/> by the Thomas algorithm,
-    /// using the factors computed in the constructor.
-    /// See https://en.wikipedia.org/wiki/Tridiagonal_matrix_algorithm
-    /// </summary>
-    private void SolveTridiagonal(double[] d, double[] x)
-    {
-        int n = d.Length;
-        x[0] = d[0] * reciprocalPivot[0];
-        for (int i = 1; i < n; i++)
-        {
-            x[i] = (d[i] - subDiagonal[i] * x[i - 1]) * reciprocalPivot[i];
-        }
-        for (int i = n - 2; i >= 0; i--)
-        {
-            x[i] -= modifiedUpper[i] * x[i + 1];
+            if (i < last) x[i] -= mu[i] * x[i + 1];
+            double sum = c[i] + x[i];
+            nextCS[i] = so * cs[i] + sc * sum + sk;
+            nextSed[i] = ho * sed[i] + hc * sum;
         }
     }
 }
