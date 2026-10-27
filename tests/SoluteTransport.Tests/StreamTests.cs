@@ -277,4 +277,48 @@ public class StreamTests
 
         Assert.Equal(paddedResult.C.Cast<double>(), shortResult.C.Cast<double>());
     }
+
+    [Fact]
+    public void Simulate_SelectedTimeLevels_MatchFullRun()
+    {
+        var p = DefaultParameters() with { Kd = 0.2, LambdaHat = 0.01, Rho = 1.5 };
+        var stream = new Stream(20, 200, 1, 0.5, [1.0, 1.0, 1.0, 0.5], p);
+        int[] levels = [0, 7, 150, 200];
+
+        SimulationResult full = stream.SimulateAdvectionAndDispersion();
+        SimulationResult selected = stream.SimulateAdvectionAndDispersion(levels);
+
+        Assert.Equal(levels, selected.TimeLevels);
+        Assert.Equal(Enumerable.Range(0, 201), full.TimeLevels);
+        Assert.Equal(levels.Length, selected.C.GetLength(1));
+        for (int k = 0; k < levels.Length; k++)
+        {
+            for (int i = 0; i < stream.SegmentCount; i++)
+            {
+                Assert.Equal(full.C[i, levels[k]], selected.C[i, k]);
+                Assert.Equal(full.CS[i, levels[k]], selected.CS[i, k]);
+                Assert.Equal(full.CSed[i, levels[k]], selected.CSed[i, k]);
+            }
+        }
+    }
+
+    [Fact]
+    public void Simulate_RepeatedRuns_GiveIdenticalResults()
+    {
+        var stream = new Stream(10, 50, 1, 1, [1.0], DefaultParameters());
+        Assert.Equal(
+            stream.SimulateAdvectionAndDispersion().C.Cast<double>(),
+            stream.SimulateAdvectionAndDispersion().C.Cast<double>());
+    }
+
+    [Theory]
+    [InlineData(new[] { -1 })]
+    [InlineData(new[] { 51 })]
+    [InlineData(new[] { 5, 5 })]
+    [InlineData(new[] { 10, 3 })]
+    public void Simulate_ThrowsArgumentException_WhenTimeLevelsInvalid(int[] levels)
+    {
+        var stream = new Stream(10, 50, 1, 1, [], DefaultParameters());
+        Assert.Throws<ArgumentException>(() => stream.SimulateAdvectionAndDispersion(levels));
+    }
 }

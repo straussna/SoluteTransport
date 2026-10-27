@@ -13,6 +13,9 @@ namespace SoluteTransport;
 /// storage-zone and streambed-sediment equations are decoupled as in
 /// Runkel (1998) equations (25)–(30), so each time step is one tridiagonal
 /// solve (Thomas algorithm) followed by explicit storage and sediment updates.
+/// The tridiagonal coefficients are constant in time, so the elimination
+/// factors are computed once; the simulation holds two time levels in memory
+/// and stores only the requested output levels.
 /// </para>
 /// <para>
 /// Flow is steady and varies along the reach by the water balance
@@ -38,11 +41,6 @@ public class Stream
     private readonly StreamParameters p;
     private readonly double[] upstreamBoundary;
 
-    // Concentration arrays [segment, time level]
-    private readonly double[,] C;
-    private readonly double[,] CS;
-    private readonly double[,] Csed;
-
     // Transport operator L[C] = lower*C[i-1] + diag*C[i] + upper*C[i+1],
     // with segment-specific entries at the boundaries.
     private readonly double[] lower;
@@ -58,6 +56,15 @@ public class Stream
     private readonly double gamma;
     private readonly double storageDenominator;
     private readonly double sedimentDenominator;
+
+    // Reaction part of F' (equation 29).
+    private readonly double reaction;
+
+    // Thomas-algorithm factors of the constant Crank-Nicolson matrix:
+    // sub-diagonal, modified super-diagonal and reciprocal pivots.
+    private readonly double[] subDiagonal;
+    private readonly double[] modifiedUpper;
+    private readonly double[] reciprocalPivot;
 
     /// <summary>
     /// Initialises a new stream transport model.
@@ -123,10 +130,6 @@ public class Stream
         this.p = parameters;
         this.upstreamBoundary = upstreamBoundaryData;
 
-        C = new double[segmentCount, timeStepCount + 1];
-        CS = new double[segmentCount, timeStepCount + 1];
-        Csed = new double[segmentCount, timeStepCount + 1];
-
         // Flow rate at segment centres, Runkel and Broshears (1991) equation (31),
         // with equal segment lengths and uniform lateral flows.
         double lateralNet = p.QLin - p.QLout;
@@ -173,7 +176,37 @@ public class Stream
         gamma = p.Alpha == 0 ? 0 : p.Alpha * dt * p.A / p.AS;
         storageDenominator = 2 + gamma + dt * p.LambdaHatS + dt * p.LambdaS;
         sedimentDenominator = 2 + dt * p.LambdaHat;
+
+        reaction = p.QLin / p.A
+            + p.Alpha * (1 - gamma / storageDenominator)
+            + p.Rho * p.LambdaHat * p.Kd * (1 - dt * p.LambdaHat / sedimentDenominator)
+            + p.Lambda;
+
+        // Left-hand side of equation (17): a C[i-1] + b C[i] + c C[i+1].
+        double half = dt / 2;
+        subDiagonal = new double[segmentCount];
+        modifiedUpper = new double[segmentCount];
+        reciprocalPivot = new double[segmentCount];
+        for (int i = 0; i < segmentCount; i++)
+        {
+            double a = -half * lower[i];
+            double b = 1 + half * (reaction - diag[i]);
+            double c = -half * upper[i];
+            double pivot = i == 0 ? b : b - a * modifiedUpper[i - 1];
+            subDiagonal[i] = a;
+            reciprocalPivot[i] = 1 / pivot;
+            modifiedUpper[i] = c / pivot;
+        }
     }
+
+    /// <summary>Number of segments in the reach.</summary>
+    public int SegmentCount => segmentCount;
+
+    /// <summary>
+    /// Number of time steps; time levels run from 0 to
+    /// <see cref="TimeStepCount"/> inclusive.
+    /// </summary>
+    public int TimeStepCount => timeStepCount;
 
     /// <summary>
     /// Runs the simulation and returns solute concentrations at every
@@ -181,135 +214,174 @@ public class Stream
     /// </summary>
     /// <returns>
     /// A <see cref="SimulationResult"/> containing main-channel (C),
-    /// storage-zone (CS) and streambed-sediment (CSed) concentrations.
+    /// storage-zone (CS) and streambed-sediment (CSed) concentrations at time
+    /// levels 0 to <see cref="TimeStepCount"/>.
     /// </returns>
-    public SimulationResult SimulateAdvectionAndDispersion()
+    public SimulationResult SimulateAdvectionAndDispersion() =>
+        SimulateAdvectionAndDispersion(Enumerable.Range(0, timeStepCount + 1).ToArray());
+
+    /// <summary>
+    /// Runs the simulation up to the last requested time level and returns
+    /// solute concentrations at every segment for the requested levels only.
+    /// </summary>
+    /// <param name="timeLevels">
+    /// Strictly increasing time levels <c>j</c> (time <c>j * dt</c>), each
+    /// between 0 and <see cref="TimeStepCount"/> inclusive.
+    /// </param>
+    /// <returns>
+    /// A <see cref="SimulationResult"/> whose second index <c>k</c> is the
+    /// time level <c>timeLevels[k]</c>.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="timeLevels"/> is <c>null</c>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when a time level is out of range or the levels are not
+    /// strictly increasing.
+    /// </exception>
+    public SimulationResult SimulateAdvectionAndDispersion(IReadOnlyList<int> timeLevels)
     {
-        for (int j = 0; j < timeStepCount; j++)
+        ArgumentNullException.ThrowIfNull(timeLevels);
+        for (int k = 0; k < timeLevels.Count; k++)
         {
-            IncrementTimeForward(j);
+            if (timeLevels[k] < 0 || timeLevels[k] > timeStepCount)
+                throw new ArgumentException($"Time level {timeLevels[k]} is outside 0 to {timeStepCount}.", nameof(timeLevels));
+            if (k > 0 && timeLevels[k] <= timeLevels[k - 1])
+                throw new ArgumentException("Time levels must be strictly increasing.", nameof(timeLevels));
         }
-        return new SimulationResult(C, CS, Csed);
+
+        int n = segmentCount;
+        int[] levels = timeLevels.ToArray();
+        var resultC = new double[n, levels.Length];
+        var resultCS = new double[n, levels.Length];
+        var resultCSed = new double[n, levels.Length];
+
+        var current = new Level(n);
+        var next = new Level(n);
+        double[] rhs = new double[n];
+
+        int output = 0;
+        for (int j = 0; output < levels.Length; j++)
+        {
+            if (j > 0)
+            {
+                IncrementTimeForward(j - 1, current, next, rhs);
+                (current, next) = (next, current);
+            }
+            if (levels[output] == j)
+            {
+                for (int i = 0; i < n; i++)
+                {
+                    resultC[i, output] = current.C[i];
+                    resultCS[i, output] = current.CS[i];
+                    resultCSed[i, output] = current.Csed[i];
+                }
+                output++;
+            }
+        }
+
+        return new SimulationResult(resultC, resultCS, resultCSed, levels);
+    }
+
+    /// <summary>Main-channel, storage-zone and sediment concentrations at one time level.</summary>
+    private sealed class Level(int segmentCount)
+    {
+        public readonly double[] C = new double[segmentCount];
+        public readonly double[] CS = new double[segmentCount];
+        public readonly double[] Csed = new double[segmentCount];
     }
 
     private double UpstreamConcentration(int j) =>
         j < upstreamBoundary.Length ? upstreamBoundary[j] : 0;
 
     /// <summary>
-    /// G[C, CS, Csed] at segment <paramref name="i"/> and time level
+    /// G[C, CS, Csed] at segment <paramref name="i"/> of time level
     /// <paramref name="j"/> (Runkel 1998, equation (15)), including the
     /// boundary terms of the transport operator.
     /// </summary>
-    private double G(int i, int j)
+    private double G(int i, int j, Level level)
     {
-        double transport = diag[i] * C[i, j];
-        if (i > 0) transport += lower[i] * C[i - 1, j];
-        if (i < segmentCount - 1) transport += upper[i] * C[i + 1, j];
+        double[] c = level.C;
+        double transport = diag[i] * c[i];
+        if (i > 0) transport += lower[i] * c[i - 1];
+        if (i < segmentCount - 1) transport += upper[i] * c[i + 1];
         if (i == 0) transport += upstreamWeight * UpstreamConcentration(j);
         if (i == segmentCount - 1) transport += downstreamSource;
 
         return transport
-            + p.QLin / p.A * (p.CL - C[i, j])
-            + p.Alpha * (CS[i, j] - C[i, j])
-            + p.Rho * p.LambdaHat * (Csed[i, j] - p.Kd * C[i, j])
-            - p.Lambda * C[i, j];
+            + p.QLin / p.A * (p.CL - c[i])
+            + p.Alpha * (level.CS[i] - c[i])
+            + p.Rho * p.LambdaHat * (level.Csed[i] - p.Kd * c[i])
+            - p.Lambda * c[i];
     }
 
     /// <summary>
-    /// Advances C, CS and Csed from time level <paramref name="j"/> to
-    /// <paramref name="j"/> + 1: solves equation (17) with the decoupled
-    /// coefficients of equations (18), (20), (29) and (30), then applies
-    /// equations (25) and (26).
+    /// Advances <paramref name="current"/> at time level <paramref name="j"/>
+    /// to <paramref name="next"/> at <paramref name="j"/> + 1: solves
+    /// equation (17) with the decoupled coefficients of equations (18), (20),
+    /// (29) and (30), then applies equations (25) and (26).
     /// </summary>
-    private void IncrementTimeForward(int j)
+    private void IncrementTimeForward(int j, Level current, Level next, double[] rhs)
     {
         int n = segmentCount;
         double half = dt / 2;
-
-        // Reaction part of F' (equation 29).
-        double reaction = p.QLin / p.A
-            + p.Alpha * (1 - gamma / storageDenominator)
-            + p.Rho * p.LambdaHat * p.Kd * (1 - dt * p.LambdaHat / sedimentDenominator)
-            + p.Lambda;
-
-        double[] a = new double[n];
-        double[] b = new double[n];
-        double[] c = new double[n];
-        double[] r = new double[n];
+        double[] c = current.C, cs = current.CS, sed = current.Csed;
 
         for (int i = 0; i < n; i++)
         {
-            a[i] = -half * lower[i];
-            b[i] = 1 + half * (reaction - diag[i]);
-            c[i] = -half * upper[i];
-
             // Known parts of CS and Csed at j + 1, equation (30).
-            double storageKnown = ((2 - gamma - dt * p.LambdaHatS - dt * p.LambdaS) * CS[i, j]
-                                   + gamma * C[i, j]
+            double storageKnown = ((2 - gamma - dt * p.LambdaHatS - dt * p.LambdaS) * cs[i]
+                                   + gamma * c[i]
                                    + 2 * dt * p.LambdaHatS * p.ChatS)
                                   / storageDenominator;
-            double sedimentKnown = ((2 - dt * p.LambdaHat) * Csed[i, j]
-                                    + dt * p.LambdaHat * p.Kd * C[i, j])
+            double sedimentKnown = ((2 - dt * p.LambdaHat) * sed[i]
+                                    + dt * p.LambdaHat * p.Kd * c[i])
                                    / sedimentDenominator;
 
-            r[i] = C[i, j] + half * (
-                G(i, j)
+            rhs[i] = c[i] + half * (
+                G(i, j, current)
                 + p.QLin / p.A * p.CL
                 + p.Alpha * storageKnown
                 + p.Rho * p.LambdaHat * sedimentKnown);
         }
 
         // Boundary terms at the advanced time level.
-        r[0] += half * upstreamWeight * UpstreamConcentration(j + 1);
-        r[n - 1] += half * downstreamSource;
+        rhs[0] += half * upstreamWeight * UpstreamConcentration(j + 1);
+        rhs[n - 1] += half * downstreamSource;
 
-        double[] next = SolveTridiagonal(a, b, c, r);
+        SolveTridiagonal(rhs, next.C);
 
         for (int i = 0; i < n; i++)
         {
-            C[i, j + 1] = next[i];
+            next.CS[i] = ((2 - gamma - dt * p.LambdaHatS - dt * p.LambdaS) * cs[i]
+                          + gamma * c[i]
+                          + gamma * next.C[i]
+                          + 2 * dt * p.LambdaHatS * p.ChatS)
+                         / storageDenominator;
 
-            CS[i, j + 1] = ((2 - gamma - dt * p.LambdaHatS - dt * p.LambdaS) * CS[i, j]
-                            + gamma * C[i, j]
-                            + gamma * C[i, j + 1]
-                            + 2 * dt * p.LambdaHatS * p.ChatS)
-                           / storageDenominator;
-
-            Csed[i, j + 1] = ((2 - dt * p.LambdaHat) * Csed[i, j]
-                              + dt * p.LambdaHat * p.Kd * (C[i, j] + C[i, j + 1]))
-                             / sedimentDenominator;
+            next.Csed[i] = ((2 - dt * p.LambdaHat) * sed[i]
+                            + dt * p.LambdaHat * p.Kd * (c[i] + next.C[i]))
+                           / sedimentDenominator;
         }
     }
 
     /// <summary>
-    /// Solves a tridiagonal system by the Thomas algorithm.
+    /// Solves the Crank-Nicolson system for right-hand side
+    /// <paramref name="d"/> into <paramref name="x"/> by the Thomas algorithm,
+    /// using the factors computed in the constructor.
     /// See https://en.wikipedia.org/wiki/Tridiagonal_matrix_algorithm
     /// </summary>
-    /// <param name="a">Sub-diagonal; <c>a[0]</c> is unused.</param>
-    /// <param name="b">Main diagonal.</param>
-    /// <param name="c">Super-diagonal; the last entry is unused.</param>
-    /// <param name="d">Right-hand side.</param>
-    private static double[] SolveTridiagonal(double[] a, double[] b, double[] c, double[] d)
+    private void SolveTridiagonal(double[] d, double[] x)
     {
         int n = d.Length;
-        double[] cp = new double[n];
-        double[] dp = new double[n];
-
-        cp[0] = c[0] / b[0];
-        dp[0] = d[0] / b[0];
+        x[0] = d[0] * reciprocalPivot[0];
         for (int i = 1; i < n; i++)
         {
-            double denom = b[i] - a[i] * cp[i - 1];
-            cp[i] = c[i] / denom;
-            dp[i] = (d[i] - a[i] * dp[i - 1]) / denom;
+            x[i] = (d[i] - subDiagonal[i] * x[i - 1]) * reciprocalPivot[i];
         }
-
-        double[] x = new double[n];
-        x[n - 1] = dp[n - 1];
         for (int i = n - 2; i >= 0; i--)
         {
-            x[i] = dp[i] - cp[i] * x[i + 1];
+            x[i] -= modifiedUpper[i] * x[i + 1];
         }
-        return x;
     }
 }
