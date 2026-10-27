@@ -303,6 +303,40 @@ public class StreamTests
     }
 
     [Fact]
+    public void Simulate_SelectedSegments_MatchFullRun()
+    {
+        var p = DefaultParameters() with { Kd = 0.2, LambdaHat = 0.01, Rho = 1.5 };
+        var stream = new Stream(20, 200, 1, 0.5, [1.0, 1.0, 1.0, 0.5], p);
+        int[] levels = [0, 7, 150, 200];
+        int[] segments = [39, 0, 12, 12];
+
+        SimulationResult full = stream.SimulateAdvectionAndDispersion(levels);
+        SimulationResult selected = stream.SimulateAdvectionAndDispersion(levels, segments);
+
+        Assert.Equal(segments, selected.Segments);
+        Assert.Equal(Enumerable.Range(0, stream.SegmentCount), full.Segments);
+        Assert.Equal(segments.Length, selected.C.GetLength(0));
+        for (int s = 0; s < segments.Length; s++)
+        {
+            for (int k = 0; k < levels.Length; k++)
+            {
+                Assert.Equal(full.C[segments[s], k], selected.C[s, k]);
+                Assert.Equal(full.CS[segments[s], k], selected.CS[s, k]);
+                Assert.Equal(full.CSed[segments[s], k], selected.CSed[s, k]);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(40)]
+    public void Simulate_ThrowsArgumentException_WhenSegmentOutOfRange(int segment)
+    {
+        var stream = new Stream(20, 10, 1, 0.5, [1.0], DefaultParameters());
+        Assert.Throws<ArgumentException>(() => stream.SimulateAdvectionAndDispersion([10], [segment]));
+    }
+
+    [Fact]
     public void Simulate_RepeatedRuns_GiveIdenticalResults()
     {
         var stream = new Stream(10, 50, 1, 1, [1.0], DefaultParameters());

@@ -265,9 +265,38 @@ public class Stream
     /// Thrown when a time level is out of range or the levels are not
     /// strictly increasing.
     /// </exception>
-    public SimulationResult SimulateAdvectionAndDispersion(IReadOnlyList<int> timeLevels)
+    public SimulationResult SimulateAdvectionAndDispersion(IReadOnlyList<int> timeLevels) =>
+        SimulateAdvectionAndDispersion(timeLevels, Enumerable.Range(0, segmentCount).ToArray());
+
+    /// <summary>
+    /// Runs the simulation up to the last requested time level and returns
+    /// solute concentrations at the requested segments and time levels only.
+    /// </summary>
+    /// <param name="timeLevels">
+    /// Strictly increasing time levels <c>j</c> (time <c>j * dt</c>), each
+    /// between 0 and <see cref="TimeStepCount"/> inclusive.
+    /// </param>
+    /// <param name="segments">
+    /// Segment indices, each between 0 and <see cref="SegmentCount"/> - 1, in
+    /// any order.
+    /// </param>
+    /// <returns>
+    /// A <see cref="SimulationResult"/> whose first index <c>s</c> is the
+    /// segment <c>segments[s]</c> and second index <c>k</c> the time level
+    /// <c>timeLevels[k]</c>.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="timeLevels"/> or <paramref name="segments"/>
+    /// is <c>null</c>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when a time level or segment is out of range or the levels are
+    /// not strictly increasing.
+    /// </exception>
+    public SimulationResult SimulateAdvectionAndDispersion(IReadOnlyList<int> timeLevels, IReadOnlyList<int> segments)
     {
         ArgumentNullException.ThrowIfNull(timeLevels);
+        ArgumentNullException.ThrowIfNull(segments);
         for (int k = 0; k < timeLevels.Count; k++)
         {
             if (timeLevels[k] < 0 || timeLevels[k] > timeStepCount)
@@ -275,15 +304,20 @@ public class Stream
             if (k > 0 && timeLevels[k] <= timeLevels[k - 1])
                 throw new ArgumentException("Time levels must be strictly increasing.", nameof(timeLevels));
         }
+        foreach (int segment in segments)
+        {
+            if (segment < 0 || segment >= segmentCount)
+                throw new ArgumentException($"Segment {segment} is outside 0 to {segmentCount - 1}.", nameof(segments));
+        }
 
-        int n = segmentCount;
         int[] levels = timeLevels.ToArray();
-        var resultC = new double[n, levels.Length];
-        var resultCS = new double[n, levels.Length];
-        var resultCSed = new double[n, levels.Length];
+        int[] outputSegments = segments.ToArray();
+        var resultC = new double[outputSegments.Length, levels.Length];
+        var resultCS = new double[outputSegments.Length, levels.Length];
+        var resultCSed = new double[outputSegments.Length, levels.Length];
 
-        var current = new Level(n);
-        var next = new Level(n);
+        var current = new Level(segmentCount);
+        var next = new Level(segmentCount);
 
         int output = 0;
         for (int j = 0; output < levels.Length; j++)
@@ -295,17 +329,18 @@ public class Stream
             }
             if (levels[output] == j)
             {
-                for (int i = 0; i < n; i++)
+                for (int s = 0; s < outputSegments.Length; s++)
                 {
-                    resultC[i, output] = current.C[i];
-                    resultCS[i, output] = current.CS[i];
-                    resultCSed[i, output] = current.Csed[i];
+                    int i = outputSegments[s];
+                    resultC[s, output] = current.C[i];
+                    resultCS[s, output] = current.CS[i];
+                    resultCSed[s, output] = current.Csed[i];
                 }
                 output++;
             }
         }
 
-        return new SimulationResult(resultC, resultCS, resultCSed, levels);
+        return new SimulationResult(resultC, resultCS, resultCSed, outputSegments, levels);
     }
 
     /// <summary>Main-channel, storage-zone and sediment concentrations at one time level.</summary>
