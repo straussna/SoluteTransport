@@ -9,7 +9,7 @@ namespace SoluteTransport;
 /// <param name="AS">Storage-zone cross-sectional area (m²).</param>
 /// <param name="CL">Lateral inflow solute concentration (kg/m³).</param>
 /// <param name="D">Longitudinal dispersion coefficient (m²/s).</param>
-/// <param name="Q">Volumetric flow rate (m³/s).</param>
+/// <param name="Q">Volumetric flow rate at the upstream boundary, QSTART (m³/s).</param>
 /// <param name="QLin">Lateral inflow rate per unit length (m²/s).</param>
 /// <param name="Alpha">Storage-zone exchange coefficient α (1/s).</param>
 /// <param name="ChatS">Background storage-zone solute concentration Ĉ_S (kg/m³).</param>
@@ -19,6 +19,7 @@ namespace SoluteTransport;
 /// <param name="LambdaHat">Main-channel sorption rate coefficient λ̂ (1/s).</param>
 /// <param name="LambdaHatS">Storage-zone sorption rate coefficient λ̂_S (1/s).</param>
 /// <param name="Rho">Mass of accessible sediment per volume of water ρ (kg/m³).</param>
+/// <param name="QLout">Lateral outflow rate per unit length (m²/s).</param>
 public record StreamParameters(
     double A,
     double AS,
@@ -33,4 +34,5 @@ public record StreamParameters(
     double LambdaS,
     double LambdaHat,
     double LambdaHatS,
-    double Rho);
+    double Rho,
+    double QLout = 0);

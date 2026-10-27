@@ -128,7 +128,7 @@ public class AnalyticalSolutionTests
     [Theory]
     [InlineData("decay")]
     [InlineData("storage decay")]
-    [InlineData("lateral inflow")]
+    [InlineData("balanced lateral flow")]
     public void ConstantInput_ReachesSteadyStateProfile(string process)
     {
         const double cbc = 1.0, alpha = 0.01, aS = 0.5, lambdaS = 0.005;
@@ -146,7 +146,8 @@ public class AnalyticalSolutionTests
                 k = alpha * aS * lambdaS / (alpha * A + aS * lambdaS);
                 break;
             default:
-                p = p with { QLin = 0.001, CL = 0.4 };
+                // Inflow and outflow balance, so Q is uniform along the reach.
+                p = p with { QLin = 0.001, QLout = 0.001, CL = 0.4 };
                 k = 0.001 / A;
                 cInf = 0.4;
                 break;
@@ -163,6 +164,50 @@ public class AnalyticalSolutionTests
         }
 
         Assert.True(maxError < 1e-3, $"max |C - steady state| = {maxError}");
+    }
+
+    [Fact]
+    public void LateralInflow_IncreasingFlow_MatchesSteadyStateProfile()
+    {
+        // Q(x) = Q + qLIN x. With y = C - CL the steady state is
+        // D A y'' - Q(x) y' - qLIN y = 0, whose bounded solution is
+        // y ∝ exp(z²) erfc(z) with z = Q(x) / sqrt(2 qLIN D A).
+        const double cbc = 1.0, qLin = 0.003, cL = 0.4;
+        var p = Conservative() with { QLin = qLin, CL = cL };
+        var result = new Stream(400, 6000, Dt, Dx, Pulse(cbc, double.MaxValue, 6000), p)
+            .SimulateAdvectionAndDispersion();
+
+        double scale = Math.Sqrt(2 * qLin * D * A);
+        double Profile(double x)
+        {
+            double z = (Q + qLin * x) / scale;
+            return ExpErfc(z * z, z);
+        }
+
+        int last = result.C.GetLength(1) - 1;
+        double maxError = 0;
+        for (int i = 0; X(i) <= 200; i++)
+        {
+            double exact = cL + (cbc - cL) * Profile(X(i)) / Profile(0);
+            maxError = Math.Max(maxError, Math.Abs(result.C[i, last] - exact));
+        }
+
+        Assert.True(maxError < 1e-3, $"max |C - steady state| = {maxError}");
+    }
+
+    [Fact]
+    public void LateralOutflow_LeavesConstantInputUnchanged()
+    {
+        const double cbc = 1.5;
+        var p = Conservative() with { QLout = 0.001 };
+        var result = new Stream(400, 4000, Dt, Dx, Pulse(cbc, double.MaxValue, 4000), p)
+            .SimulateAdvectionAndDispersion();
+
+        int last = result.C.GetLength(1) - 1;
+        for (int i = 0; i < result.C.GetLength(0); i++)
+        {
+            Assert.Equal(cbc, result.C[i, last], 6);
+        }
     }
 
     [Fact]

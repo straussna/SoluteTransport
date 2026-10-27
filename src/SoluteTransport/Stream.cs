@@ -15,6 +15,14 @@ namespace SoluteTransport;
 /// solve (Thomas algorithm) followed by explicit storage and sediment updates.
 /// </para>
 /// <para>
+/// Flow is steady and varies along the reach by the water balance
+/// <c>dQ/dx = qLIN - qLOUT</c> (Runkel and Broshears 1991, equation A20).
+/// The flow rate at each segment centre follows Runkel and Broshears (1991),
+/// equation (31), starting from <c>Q</c> at the upstream boundary. Lateral
+/// outflow removes water at the main-channel concentration, so it changes
+/// the solute balance only through the flow rate.
+/// </para>
+/// <para>
 /// Boundary conditions follow Runkel and Broshears (1991), appendix B: the
 /// upstream boundary is a fixed concentration <c>Cbc</c> at the upstream face
 /// of the first segment (equations B10–B14), and the downstream boundary is a
@@ -75,9 +83,11 @@ public class Stream
     /// <exception cref="ArgumentException">
     /// Thrown when <paramref name="dx"/> or <paramref name="dt"/> is not
     /// positive, when the reach holds fewer than two segments or the duration
-    /// less than one time step, when A is not positive, when D is negative,
-    /// when AS is not positive while Alpha is non-zero, or when D is zero while
-    /// <paramref name="downstreamDispersiveFlux"/> is non-zero.
+    /// less than one time step, when A is not positive, when D, QLin or QLout
+    /// is negative, when the flow rate is negative at the upstream boundary or
+    /// any segment centre, when AS is not positive while Alpha is non-zero, or
+    /// when D is zero while <paramref name="downstreamDispersiveFlux"/> is
+    /// non-zero.
     /// </exception>
     public Stream(
         double streamLength,
@@ -94,6 +104,9 @@ public class Stream
         if (dt <= 0) throw new ArgumentException("dt must be positive.", nameof(dt));
         if (parameters.A <= 0) throw new ArgumentException("A must be positive.", nameof(parameters));
         if (parameters.D < 0) throw new ArgumentException("D must not be negative.", nameof(parameters));
+        if (parameters.Q < 0) throw new ArgumentException("Q must not be negative.", nameof(parameters));
+        if (parameters.QLin < 0) throw new ArgumentException("QLin must not be negative.", nameof(parameters));
+        if (parameters.QLout < 0) throw new ArgumentException("QLout must not be negative.", nameof(parameters));
         if (parameters.Alpha != 0 && parameters.AS <= 0)
             throw new ArgumentException("AS must be positive when Alpha is non-zero.", nameof(parameters));
         if (downstreamDispersiveFlux != 0 && parameters.D == 0)
@@ -114,36 +127,48 @@ public class Stream
         CS = new double[segmentCount, timeStepCount + 1];
         Csed = new double[segmentCount, timeStepCount + 1];
 
+        // Flow rate at segment centres, Runkel and Broshears (1991) equation (31),
+        // with equal segment lengths and uniform lateral flows.
+        double lateralNet = p.QLin - p.QLout;
+        double[] flow = new double[segmentCount];
+        for (int i = 0; i < segmentCount; i++)
+        {
+            flow[i] = p.Q + lateralNet * (i + 0.5) * dx;
+        }
+        if (flow[segmentCount - 1] < 0)
+            throw new ArgumentException("QLout must not drain the flow rate below zero within the reach.", nameof(parameters));
+
         // Interior segments: Runkel (1998) equation (12).
-        double adv = p.Q / (2 * p.A * dx);
+        double[] adv = new double[segmentCount];
         double disp = p.D / (dx * dx);
         lower = new double[segmentCount];
         diag = new double[segmentCount];
         upper = new double[segmentCount];
         for (int i = 0; i < segmentCount; i++)
         {
-            lower[i] = adv + disp;
+            adv[i] = flow[i] / (2 * p.A * dx);
+            lower[i] = adv[i] + disp;
             diag[i] = -2 * disp;
-            upper[i] = -adv + disp;
+            upper[i] = -adv[i] + disp;
         }
 
         // First segment: equations (B11) and (B14).
-        //   advection  -(Q / A dx) ((C[0] + C[1]) / 2 - Cbc)
+        //   advection  -(Q[0] / A dx) ((C[0] + C[1]) / 2 - Cbc)
         //   dispersion (D / dx²) (C[1] - 3 C[0] + 2 Cbc)
         lower[0] = 0;
-        diag[0] = -adv - 3 * disp;
-        upper[0] = -adv + disp;
-        upstreamWeight = 2 * adv + 2 * disp;
+        diag[0] = -adv[0] - 3 * disp;
+        upper[0] = -adv[0] + disp;
+        upstreamWeight = 2 * adv[0] + 2 * disp;
 
         // Last segment: equations (B16)–(B18), with C[N] = C[N-1] + dx DSBOUND / D.
-        //   advection  -(Q / 2 A dx) (C[N-1] - C[N-2] + dx DSBOUND / D)
+        //   advection  -(Q[N-1] / 2 A dx) (C[N-1] - C[N-2] + dx DSBOUND / D)
         //   dispersion DSBOUND / dx - (D / dx²) (C[N-1] - C[N-2])
         int last = segmentCount - 1;
-        diag[last] = -adv - disp;
+        diag[last] = -adv[last] - disp;
         upper[last] = 0;
         downstreamSource = downstreamDispersiveFlux == 0
             ? 0
-            : -p.Q * downstreamDispersiveFlux / (2 * p.A * p.D) + downstreamDispersiveFlux / dx;
+            : -flow[last] * downstreamDispersiveFlux / (2 * p.A * p.D) + downstreamDispersiveFlux / dx;
 
         gamma = p.Alpha == 0 ? 0 : p.Alpha * dt * p.A / p.AS;
         storageDenominator = 2 + gamma + dt * p.LambdaHatS + dt * p.LambdaS;

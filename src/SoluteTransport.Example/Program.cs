@@ -25,7 +25,7 @@ var parameters = new StreamParameters(
     AS: 0.1,       // storage-zone cross-sectional area (m²)
     CL: 0.0,       // lateral inflow concentration (kg/m³)
     D: 0.05,       // dispersion coefficient (m²/s)
-    Q: 0.5,        // flow rate (m³/s)
+    Q: 0.5,        // flow rate at the upstream boundary (m³/s)
     QLin: 0.0,     // lateral inflow rate per unit length (m²/s)
     Alpha: 0.001,  // storage exchange rate (1/s)
     ChatS: 0.0,    // background storage-zone concentration (kg/m³)
@@ -34,7 +34,8 @@ var parameters = new StreamParameters(
     LambdaS: 0.0,  // first-order decay (storage zone) (1/s)
     LambdaHat: 0.0,  // main-channel sorption rate (1/s)
     LambdaHatS: 0.0, // storage-zone sorption rate (1/s)
-    Rho: 0.0);     // accessible sediment mass per water volume (kg/m³)
+    Rho: 0.0,      // accessible sediment mass per water volume (kg/m³)
+    QLout: 0.0);   // lateral outflow rate per unit length (m²/s)
 
 var stream = new SoluteTransport.Stream(streamLength, totalDuration, dt, dx, upstreamBoundary, parameters);
 

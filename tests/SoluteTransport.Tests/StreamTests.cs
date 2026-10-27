@@ -109,6 +109,26 @@ public class StreamTests
             new Stream(10, 10, 1, 1, [], p, downstreamDispersiveFlux: 0.1));
     }
 
+    [Theory]
+    [InlineData(-0.1, 0.0, 0.0)]
+    [InlineData(0.5, -0.01, 0.0)]
+    [InlineData(0.5, 0.0, -0.01)]
+    public void Constructor_ThrowsArgumentException_WhenFlowIsNegative(double q, double qLin, double qLout)
+    {
+        var p = DefaultParameters() with { Q = q, QLin = qLin, QLout = qLout };
+        Assert.Throws<ArgumentException>(() =>
+            new Stream(10, 10, 1, 1, [], p));
+    }
+
+    [Fact]
+    public void Constructor_ThrowsArgumentException_WhenOutflowDrainsReach()
+    {
+        // Q at the last segment centre is 0.5 - 0.06 * 9.5 < 0.
+        var p = DefaultParameters() with { QLout = 0.06 };
+        Assert.Throws<ArgumentException>(() =>
+            new Stream(10, 10, 1, 1, [], p));
+    }
+
     // ------------------------------------------------------------------
     // SimulateAdvectionAndDispersion – basic sanity checks
     // ------------------------------------------------------------------
